@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { NextPage } from "next";
-import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { useAccount, useBalance, useReadContract, useSignMessage } from "wagmi";
+
+// import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
 const Home: NextPage = () => {
   return (
@@ -19,7 +22,7 @@ const Home: NextPage = () => {
             </code>
           </p>
           <PageBody />
-          <ExampleContractRead />
+          {/* <ExampleContractRead /> */}
         </div>
       </div>
     </>
@@ -30,29 +33,311 @@ function PageBody() {
   return (
     <>
       <p className="text-center text-lg">Here we are!</p>
+      <WalletInfo />
+      <RandomWord></RandomWord>
     </>
   );
 }
 
-function ExampleContractRead() {
-  const {
-    data: helloWorld,
-    isPending,
-    isError,
-    dataUpdatedAt,
-  } = useScaffoldReadContract({
-    contractName: "HelloWorld",
-    functionName: "helloWorld",
+// function ExampleContractRead() {
+//   const {
+//     data: helloWorld,
+//     isPending,
+//     isError,
+//     dataUpdatedAt,
+//   } = useScaffoldReadContract({
+//     contractName: "HelloWorld",
+//     functionName: "helloWorld",
+//   });
+
+//   if (isPending) return <p className="text-center text-lg">Loading...</p>;
+//   if (isError) return <p className="text-center text-lg">Error getting information from your contract</p>;
+
+//   return (
+//     <>
+//       <p className="text-center text-lg">The text from the contract is {helloWorld}</p>
+//       <p className="text-center text-sm">This data was last updated at {new Date(dataUpdatedAt).toLocaleString()}</p>
+//     </>
+//   );
+// }
+
+function WalletInfo() {
+  const { address, isConnecting, isDisconnected, chain } = useAccount();
+  if (address)
+    return (
+      <div>
+        <p>Your account address is {address}</p>
+        <p>Connected to the network {chain?.name}</p>
+        <WalletAction />
+        <WalletBalance address={address as `0x${string}`}></WalletBalance>
+        <TokenInfo address={address as `0x${string}`}></TokenInfo>
+        <ApiData address={address as `0x${string}`}></ApiData>
+      </div>
+    );
+  if (isConnecting)
+    return (
+      <div>
+        <p>Loading...</p>
+      </div>
+    );
+  if (isDisconnected)
+    return (
+      <div>
+        <p>Wallet disconnected. Connect wallet to continue</p>
+      </div>
+    );
+  return (
+    <div>
+      <p>Connect wallet to continue</p>
+    </div>
+  );
+}
+
+function WalletAction() {
+  const [signatureMessage, setSignatureMessage] = useState("");
+  const { data, isError, isPending, isSuccess, signMessage } = useSignMessage();
+  return (
+    <div className="card w-96 bg-primary text-primary-content mt-4">
+      <div className="card-body">
+        <h2 className="card-title">Testing signatures</h2>
+        <div className="form-control w-full max-w-xs my-4">
+          <label className="label">
+            <span className="label-text">Enter the message to be signed:</span>
+          </label>
+          <input
+            type="text"
+            placeholder="Type here"
+            className="input input-bordered w-full max-w-xs"
+            value={signatureMessage}
+            onChange={e => setSignatureMessage(e.target.value)}
+          />
+        </div>
+        <button
+          className="btn btn-active btn-neutral"
+          disabled={isPending}
+          onClick={() =>
+            signMessage({
+              message: signatureMessage,
+            })
+          }
+        >
+          Sign message
+        </button>
+        {isSuccess && <div>Signature: {data}</div>}
+        {isError && <div>Error signing message</div>}
+      </div>
+    </div>
+  );
+}
+
+function WalletBalance(params: { address: `0x${string}` }) {
+  const { data, isError, isLoading } = useBalance({
+    address: params.address,
   });
 
-  if (isPending) return <p className="text-center text-lg">Loading...</p>;
-  if (isError) return <p className="text-center text-lg">Error getting information from your contract</p>;
+  if (isLoading) return <div>Fetching balance…</div>;
+  if (isError) return <div>Error fetching balance</div>;
+  return (
+    <div className="card w-96 bg-primary text-primary-content mt-4">
+      <div className="card-body">
+        <h2 className="card-title">Testing useBalance wagmi hook</h2>
+        Balance: {data?.formatted} {data?.symbol}
+      </div>
+    </div>
+  );
+}
+
+function TokenInfo(params: { address: `0x${string}` }) {
+  return (
+    <div className="card w-96 bg-primary text-primary-content mt-4">
+      <div className="card-body">
+        <h2 className="card-title">Testing useReadContract wagmi hook</h2>
+        <TokenName></TokenName>
+        <TokenBalance address={params.address}></TokenBalance>
+      </div>
+    </div>
+  );
+}
+
+function TokenName() {
+  const { data, isError, isLoading } = useReadContract({
+    address: "0x37dBD10E7994AAcF6132cac7d33bcA899bd2C660",
+    abi: [
+      // {
+      //   constant: true,
+      //   inputs: [],
+      //   name: "name",
+      //   outputs: [
+      //     {
+      //       name: "",
+      //       type: "string",
+      //     },
+      //   ],
+      //   payable: false,
+      //   stateMutability: "view",
+      //   type: "function",
+      // },
+      {
+        inputs: [],
+        name: "name",
+        outputs: [
+          {
+            internalType: "string",
+            name: "",
+            type: "string",
+          },
+        ],
+        stateMutability: "view",
+        type: "function",
+      },
+    ],
+    functionName: "name",
+  });
+
+  const name = typeof data === "string" ? data : 0;
+
+  if (isLoading) return <div>Fetching name…</div>;
+  if (isError) return <div>Error fetching name</div>;
+  return <div>Token name: {name}</div>;
+}
+
+function TokenBalance(params: { address: `0x${string}` }) {
+  const { data, isError, isLoading } = useReadContract({
+    address: "0x37dBD10E7994AAcF6132cac7d33bcA899bd2C660",
+    abi: [
+      {
+        constant: true,
+        inputs: [
+          {
+            name: "_owner",
+            type: "address",
+          },
+        ],
+        name: "balanceOf",
+        outputs: [
+          {
+            name: "balance",
+            type: "uint256",
+          },
+        ],
+        payable: false,
+        stateMutability: "view",
+        type: "function",
+      },
+    ],
+    functionName: "balanceOf",
+    args: [params.address],
+  });
+
+  const balance = typeof data === "number" ? data : 0;
+
+  if (isLoading) return <div>Fetching balance…</div>;
+  if (isError) return <div>Error fetching balance</div>;
+  return <div>Balance: {balance}</div>;
+}
+
+function RandomWord() {
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("https://randomuser.me/api/")
+      .then(res => res.json())
+      .then(data => {
+        setData(data.results[0]);
+        setLoading(false);
+      });
+  }, []);
+
+  if (isLoading) return <p>Loading...</p>;
+  if (!data) return <p>No profile data</p>;
 
   return (
-    <>
-      <p className="text-center text-lg">The text from the contract is {helloWorld}</p>
-      <p className="text-center text-sm">This data was last updated at {new Date(dataUpdatedAt).toLocaleString()}</p>
-    </>
+    <div className="card w-96 bg-primary text-primary-content mt-4">
+      <div className="card-body">
+        <h2 className="card-title">Testing useState and useEffect from React library</h2>
+        <h1>
+          Name: {data.name.title} {data.name.first} {data.name.last}
+        </h1>
+        <p>Email: {data.email}</p>
+      </div>
+    </div>
+  );
+}
+
+function ApiData(params: { address: `0x${string}` }) {
+  return (
+    <div className="card w-96 bg-primary text-primary-content mt-4">
+      <div className="card-body">
+        <h2 className="card-title">Testing API Coupling</h2>
+        <TokenAddressFromApi></TokenAddressFromApi>
+        <RequestTokens address={params.address}></RequestTokens>
+      </div>
+    </div>
+  );
+}
+
+function TokenAddressFromApi() {
+  const [data, setData] = useState<{ result: string }>();
+  const [isLoading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("http://localhost:3001/contract-address")
+      .then(res => res.json())
+      .then(data => {
+        setData(data);
+        setLoading(false);
+      });
+  }, []);
+
+  if (isLoading) return <p>Loading token address from API...</p>;
+  if (!data) return <p>No token address information</p>;
+
+  return (
+    <div>
+      <p>Token address from API: {data.result}</p>
+    </div>
+  );
+}
+
+function RequestTokens(params: { address: string }) {
+  const [data, setData] = useState<{ result: boolean }>();
+  const [isLoading, setLoading] = useState(false);
+  const [responseMessage, setResponseMessage] = useState<string | null>(null);
+
+  const body = { address: params.address };
+
+  if (isLoading) return <p>Requesting tokens from API...</p>;
+  if (!data) {
+    return (
+      <button
+        className="btn btn-active btn-neutral"
+        onClick={() => {
+          setLoading(true);
+          fetch("http://localhost:3001/mint-tokens", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+            .then(async res => {
+              const jsonResponse = await res.json();
+              setResponseMessage(jsonResponse.result.message);
+              return jsonResponse;
+            })
+            .then(data => {
+              setData(data);
+              setLoading(false);
+            });
+        }}
+      >
+        Request tokens
+      </button>
+    );
+  }
+  return (
+    <div>
+      <p>Result from API: {data.result ? `${responseMessage}` : "failed"}</p>
+    </div>
   );
 }
 
